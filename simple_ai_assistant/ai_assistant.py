@@ -5,45 +5,69 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
 
-# INITIALIZATION
 
-# load config from .env file
-load_dotenv()
+def ask_to_model(client, model, history):
+    response = client.chat.completions.create(
+        model=model,
+        messages=history
+    )
+    return response.choices[0].message.content
 
-# Create a clien that communicates with Ollama
-client = OpenAI(
-    base_url=os.getenv("BASE_URL"),
-    api_key=os.getenv("API_KEY")
-)
+def add_to_chat_history(history_list, role, message):
+    history_list.append({
+        "role": role,
+        "content": message
+    })
 
-console = Console()
+def chat_loop(client, model, console):
+    
+    chat_history = []
+    while True:
+        try:
+            user_prompt = input("\n> ")
+        except (KeyboardInterrupt, EOFError):
+            console.print("\nGoodbye!")
 
-# Send a question to the AI model
-def ask_to_model(client, message):
-    return client.chat.completions.create(
-        model=os.getenv("MODEL"),
-        messages=[
-            {
-                "role": "user",
-                "content": message
-            }
-        ]
+        if not user_prompt:
+            continue
+
+        add_to_chat_history(chat_history, "user", user_prompt)
+
+        try:
+            with console.status("Thinking"):
+                model_response = ask_to_model(client, model, chat_history)
+        except Exception as e:
+            console.print(f"[red]Error:[/red] {e}")
+            chat_history.pop() # Remove the latest user prompt from the chat history
+            continue
+
+        add_to_chat_history(chat_history, "assistant", model_response)
+        console.print(Panel(
+            Markdown(model_response),
+            title=model,
+            border_style="cyan"
+        ))
+
+def main():
+    
+    load_dotenv() # load config from .env file
+
+    model = os.getenv("MODEL")
+    base_url = os.getenv("BASE_URL")
+    api_key = os.getenv("API_KEY")
+
+    if not all([model, base_url, api_key]):
+        raise SystemExit("Missing MODEL, BASE_URL or API_KEY in .env")
+
+    # Create a clien that communicates with Ollama
+    client = OpenAI(
+        base_url=base_url,
+        api_key=api_key
     )
 
-def chat_loop():
-    while True:
-        user_prompt = input("\n> ")
+    chat_history = []
+    chat_loop(client, model, Console())
 
-        if user_prompt:
-            with console.status("..."):
-                model_response = ask_to_model(client, user_prompt)
-
-        if model_response:
-            console.print(Panel(
-                Markdown(model_response.choices[0].message.content),
-                title=os.getenv("MODEL"),
-                border_style="cyan"
-            ))
 
 if __name__ == "__main__":
-    chat_loop()
+    main()
