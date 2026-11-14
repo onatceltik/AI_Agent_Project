@@ -5,5 +5,7 @@
 .vscode/
 .idea/
 
+.env
+
 # Other Files/Folders
 Other/

@@ -5,6 +5,10 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.prompt import Prompt
+from rich.text import Text
+from pathlib import Path
+import prompt_toolkit
+
 
 #region MENU
 def run_menu(console, title, options, back_label="BACK"):
@@ -34,26 +38,63 @@ def run_menu(console, title, options, back_label="BACK"):
         except (KeyboardInterrupt, EOFError):
             break
 
-def main_menu(console, client, model):
+def main_menu(console, client, model, system_settings):
     run_menu(console, "Menu", [
-        ("Chat", lambda: chat_loop(console, client, model)),
-        ("System settings", lambda: system_settings_menu(console)),
-        ("Role settings", lambda: role_settings_menu(console))
+        ("Chat",            lambda: chat_loop(console, client, model, system_settings)),
+        ("System settings", lambda: system_settings_menu(console, system_settings)),
+        ("Role settings",   lambda: role_settings_menu(console, system_settings))
     ], back_label="Quit")
 
-def system_settings_menu(console):
+def system_settings_menu(console, system_settings):
     run_menu(console, "System Settings", [
-        ("View system prompt", console.print("Not implemented yet!")),
-        ("Edit system prompt", console.print("Not implemented yet!")),
+        ("View system prompt", lambda: view_system_prompt(console, system_settings)),
+        ("Edit system prompt", lambda: edit_system_prompt(console, system_settings)),
     ])
 
-def role_settings_menu(console):
+def role_settings_menu(console, system_settings):
     run_menu(console, "Role Settings", [
-        ("Create a new role", console.print("Not implemented yet!")),
-        ("View roles", console.print("Not implemented yet!")),
-        ("Edit a role", console.print("Not implemented yet!")),
-        ("Delete a role", console.print("Not implemented yet!"))
+        ("Create a new role", lambda: console.print("Not implemented yet!")),
+        ("View roles",        lambda: console.print("Not implemented yet!")),
+        ("Edit a role",       lambda: console.print("Not implemented yet!")),
+        ("Delete a role",     lambda: console.print("Not implemented yet!"))
     ])
+#endregion
+
+#region SYSTEM PROMPT FUNCS
+def get_system_prompt(system_settings):
+    system_prompt_path = system_settings["system_prompt_path"]
+    try:
+        system_prompt_text = system_prompt_path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        system_prompt_text = ""
+    return system_prompt_text
+
+def set_system_prompt(system_settings, new_prompt):
+    system_prompt_path = system_settings["system_prompt_path"]
+    system_prompt_path.parent.mkdir(parents=True, exist_ok=True)
+    system_prompt_path.write_text(new_prompt, encoding="utf-8")
+
+def view_system_prompt(console, system_settings):
+    system_prompt_text = get_system_prompt(system_settings)
+    if system_prompt_text != "":
+        console.print(Panel(Text(system_prompt_text), title="System prompt"))
+    else:
+        console.print(Panel("[yellow]No System Prompt is given[/yellow]"))
+
+def edit_system_prompt(console, system_settings):
+    current_system_prompt = get_system_prompt(system_settings)
+
+    console.print("[dim]Enter adds a new line. Esc then Enter saves. Ctrl+C cancels.[/dim]")
+    try:
+        new_system_prompt_text = prompt_toolkit.prompt(
+            "", multiline=True, default=current_system_prompt
+        )
+    except (KeyboardInterrupt, EOFError):
+        console.print("[yellow]Cancelled, nothing changed.[/yellow]")
+        return
+    
+    set_system_prompt(system_settings, new_system_prompt_text)
+    console.print("[green]System prompt updated.[/green]")
 #endregion
 
 #region CHAT
@@ -70,9 +111,18 @@ def add_to_chat_history(history_list, role, message):
         "content": message
     })
 
-def chat_loop(console, client, model):
+def chat_loop(console, client, model, system_settings):
     
     chat_history = []
+
+    system_prompt_text = get_system_prompt(system_settings)
+    if system_prompt_text:
+        add_to_chat_history(
+            chat_history,
+            "system",
+            system_prompt_text
+        )
+
     while True:
         try:
             user_prompt = input("\n> ")
@@ -105,7 +155,7 @@ def chat_loop(console, client, model):
             border_style="cyan"
         ))
 #endregion
-        
+
 def main():
     
     load_dotenv() # load config from .env file
@@ -123,13 +173,14 @@ def main():
         api_key=api_key
     )
 
-    chat_history = []
-    role=None
+    # System Related
+    BASE = Path(__file__).resolve().parent
+    system_settings = {
+        "system_prompt_path": BASE / "system_files" / "system_prompt",
+    }
 
     console = Console()
-
-    main_menu(console, client, model)
-    # chat_loop(client, model, console)
+    main_menu(console, client, model, system_settings)
 
 if __name__ == "__main__":
     main()
