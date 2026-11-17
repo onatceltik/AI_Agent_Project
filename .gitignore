@@ -5,7 +5,9 @@
 .vscode/
 .idea/
 
+# Personal Files
 .env
+./system_files
 
 # Other Files/Folders
 Other/
