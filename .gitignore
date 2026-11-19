@@ -7,7 +7,7 @@
 
 # Personal Files
 .env
-system_files/*
+./ai_assistant/system_files/*
 
 # Other Files/Folders
 Other/
