@@ -262,14 +262,14 @@ def role_delete_menu(console, system_settings):
 def ask_to_model(client, model, history):
     response = client.chat.completions.create(
         model=model,
-        messages=history
+        messages=history,
     )
     return response.choices[0].message.content
 
 def add_to_chat_history(history_list, role, message):
     history_list.append({
         "role": role,
-        "content": message
+        "content": message,
     })
 
 def build_system_prompt(console, system_settings, role):
